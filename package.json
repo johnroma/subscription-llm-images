@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
+    "build:prod": "tsc -p tsconfig.build.json --outDir ${BUILD_OUT_DIR:-dist}",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run test"
