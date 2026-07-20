@@ -71,6 +71,7 @@ async function runCodex(
     "--skip-git-repo-check",
     "--json",
     ...referencePaths.flatMap((path) => ["--image", path]),
+    "--",
     prompt,
   ]
 
