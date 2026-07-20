@@ -54,6 +54,9 @@ curl -X POST http://127.0.0.1:8787/v1/images/generate \
     "provider": "codex",
     "model": "gpt-image-2",
     "prompt": "A retro travel poster of Stockholm",
+    "references": [
+      { "data": "<base64-encoded PNG, JPEG, or WebP>", "mimeType": "image/png" }
+    ],
     "width": 1536,
     "height": 1024,
     "format": "webp"
@@ -67,10 +70,12 @@ When `SUBSCRIPTION_IMAGE_TOKEN` is configured, include:
 -H "authorization: Bearer $SUBSCRIPTION_IMAGE_TOKEN"
 ```
 
-Generation uses one isolated temporary workspace per request. The Codex CLI is
-run ephemerally with user configuration ignored, except for its existing auth.
-The generated result is normalized to the requested dimensions and format with
-Sharp, then the temporary workspace is deleted.
+Generation uses one isolated temporary workspace per request. Up to two inline
+PNG, JPEG, or WebP references (10 MB each) are validated and saved there for
+Codex to use as ordered visual inputs. The Codex CLI is run ephemerally with
+user configuration ignored, except for its existing auth. The generated result
+is normalized to the requested dimensions and format with Sharp, then the
+temporary workspace is deleted.
 
 ## `wc-img-ai/server` integration
 

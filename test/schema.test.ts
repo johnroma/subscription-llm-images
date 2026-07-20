@@ -13,6 +13,7 @@ describe('generationRequestSchema', () => {
     expect(result.format).toBe('png')
     expect(result.provider).toBe('codex')
     expect(result.model).toBeUndefined()
+    expect(result.references).toEqual([])
   })
 
   it('accepts all image formats', () => {
@@ -23,8 +24,36 @@ describe('generationRequestSchema', () => {
     }
   })
 
-  it('accepts an explicit provider and model', () => {
+  it('accepts validated inline image references', () => {
     const result = generationRequestSchema.parse({
+      ...valid,
+      references: [
+        { data: Buffer.from('reference').toString('base64'), mimeType: 'image/png' },
+        { data: Buffer.from('second reference').toString('base64'), mimeType: 'image/jpeg' },
+      ],
+    })
+    expect(result.references).toEqual([
+      { data: Buffer.from('reference').toString('base64'), mimeType: 'image/png' },
+      { data: Buffer.from('second reference').toString('base64'), mimeType: 'image/jpeg' },
+    ])
+  })
+
+  it('rejects malformed, unsupported, and excessive image references', () => {
+    for (const references of [
+      [{ data: 'not base64!', mimeType: 'image/png' }],
+      [{ data: 'aGVsbG8=', mimeType: 'image/gif' }],
+      [
+        { data: 'aGVsbG8=', mimeType: 'image/png' },
+        { data: 'aGVsbG8=', mimeType: 'image/png' },
+        { data: 'aGVsbG8=', mimeType: 'image/png' },
+      ],
+    ]) {
+      expect(() => generationRequestSchema.parse({ ...valid, references })).toThrow()
+    }
+  })
+
+  it('accepts an explicit provider and model', () => {
+	    const result = generationRequestSchema.parse({
       ...valid,
       provider: 'claude',
       model: 'claude-3.5-sonnet',

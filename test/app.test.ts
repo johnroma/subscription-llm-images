@@ -106,6 +106,30 @@ describe('POST /v1/images/generate', () => {
     expect(request.model).toBe('test-model')
   })
 
+  it('passes ordered image references to the provider', async () => {
+    const provider = mockProvider()
+    const app = createApp(baseConfig, [provider])
+    await app.request('/v1/images/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        prompt: 'blend these references',
+        width: 512,
+        height: 512,
+        provider: 'mock',
+        references: [
+          { data: 'aW1hZ2Utb25l', mimeType: 'image/png' },
+          { data: 'aW1hZ2UtdHdv', mimeType: 'image/webp' },
+        ],
+      }),
+    })
+    const [request] = vi.mocked(provider.generate).mock.calls[0]!
+    expect(request.references).toEqual([
+      { data: 'aW1hZ2Utb25l', mimeType: 'image/png' },
+      { data: 'aW1hZ2UtdHdv', mimeType: 'image/webp' },
+    ])
+  })
+
   it('rejects invalid JSON with 400', async () => {
     const app = createApp(baseConfig, [mockProvider()])
     const res = await app.request('/v1/images/generate', {

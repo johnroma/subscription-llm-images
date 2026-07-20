@@ -1,10 +1,10 @@
 import { spawn } from "node:child_process"
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises"
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import sharp from "sharp"
 import type { Config } from "../config.js"
-import type { GeneratedImage, GenerationRequest } from "../schema.js"
+import type { GeneratedImage, GenerationRequest, ReferenceImage } from "../schema.js"
 import type { ImageProvider } from "./provider.js"
 
 const MAX_LOG_BYTES = 2 * 1024 * 1024
@@ -29,10 +29,33 @@ function stopProcess(pid: number | undefined): void {
   }
 }
 
+const referenceExtension: Record<ReferenceImage["mimeType"], string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+}
+
+async function writeReferences(
+  jobDirectory: string,
+  references: readonly ReferenceImage[],
+): Promise<string[]> {
+  if (references.length === 0) return []
+  const referencesDirectory = join(jobDirectory, "references")
+  await mkdir(referencesDirectory)
+  return Promise.all(
+    references.map(async (reference, index) => {
+      const filename = `reference-${index + 1}.${referenceExtension[reference.mimeType]}`
+      await writeFile(join(referencesDirectory, filename), Buffer.from(reference.data, "base64"))
+      return join(referencesDirectory, filename)
+    }),
+  )
+}
+
 async function runCodex(
-  executable: string,
+	  executable: string,
   workingDirectory: string,
   prompt: string,
+  referencePaths: readonly string[],
   signal: AbortSignal,
 ): Promise<void> {
   const args = [
@@ -47,6 +70,8 @@ async function runCodex(
     "workspace-write",
     "--skip-git-repo-check",
     "--json",
+    ...referencePaths.flatMap((path) => ["--image", path]),
+    "--",
     prompt,
   ]
 
@@ -112,11 +137,15 @@ export class CodexProvider implements ImageProvider {
     const imagesDirectory = join(jobDirectory, "images")
     const sourcePath = join(imagesDirectory, "generated.png")
     await mkdir(imagesDirectory)
+    const referencePaths = await writeReferences(jobDirectory, request.references)
 
     const ratio = `${request.width}:${request.height}`
     const prompt = [
       "$imagegen Use the built-in gpt-image-2 image generation tool.",
       `Generate this image: ${request.prompt}`,
+      referencePaths.length > 0
+        ? "Use the attached visual references as ordered inputs."
+        : "",
       `Target aspect ratio ${ratio}.`,
       "Save the generated image directly as ./images/generated.png.",
       "Do not create the image with scripts, SVG, canvas, or drawing utilities.",
@@ -124,7 +153,7 @@ export class CodexProvider implements ImageProvider {
     ].join(" ")
 
     try {
-      await runCodex(this.config.CODEX_BIN, jobDirectory, prompt, signal)
+      await runCodex(this.config.CODEX_BIN, jobDirectory, prompt, referencePaths, signal)
       const source = await readFile(sourcePath).catch(() => {
         throw new CodexGenerationError(
           "Codex completed without creating ./images/generated.png",
