@@ -57,7 +57,7 @@ async function runCodex(
   prompt: string,
   referencePaths: readonly string[],
   signal: AbortSignal,
-): Promise<void> {
+): Promise<string> {
   const args = [
     "exec",
     "--ephemeral",
@@ -75,7 +75,7 @@ async function runCodex(
     prompt,
   ]
 
-  await new Promise<void>((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     const child = spawn(executable, args, {
       cwd: workingDirectory,
       detached: true,
@@ -102,7 +102,7 @@ async function runCodex(
     child.once("close", (code, terminationSignal) => {
       signal.removeEventListener("abort", abort)
       if (signal.aborted) return
-      if (code === 0) resolve()
+      if (code === 0) resolve(output.slice(-8_000))
       else {
         reject(
           new CodexGenerationError(
@@ -153,10 +153,11 @@ export class CodexProvider implements ImageProvider {
     ].join(" ")
 
     try {
-      await runCodex(this.config.CODEX_BIN, jobDirectory, prompt, referencePaths, signal)
+      const diagnostics = await runCodex(this.config.CODEX_BIN, jobDirectory, prompt, referencePaths, signal)
       const source = await readFile(sourcePath).catch(() => {
         throw new CodexGenerationError(
           "Codex completed without creating ./images/generated.png",
+          diagnostics,
         )
       })
       const pipeline = sharp(source).resize(request.width, request.height, {

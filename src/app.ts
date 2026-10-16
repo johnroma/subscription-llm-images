@@ -3,6 +3,7 @@ import { Hono } from "hono"
 import type { Config } from "./config.js"
 import { CapacityError, ConcurrencyGate } from "./concurrency.js"
 import { generationRequestSchema } from "./schema.js"
+import { CodexGenerationError } from "./providers/codex.js"
 import type { ImageProvider } from "./providers/provider.js"
 
 function authorized(header: string | undefined, token: string | undefined): boolean {
@@ -73,6 +74,9 @@ export function createApp(config: Config, providers: readonly ImageProvider[]) {
       const status = error instanceof CapacityError ? 429 : 502
       const message = error instanceof Error ? error.message : "generation failed"
       console.error("[generation]", message)
+      if (error instanceof CodexGenerationError && error.details) {
+        console.error("[generation:codex-details]", error.details)
+      }
       return context.json({ error: { message } }, status)
     }
   })
